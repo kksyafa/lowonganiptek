@@ -1,458 +1,421 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Briefcase, User, FileText, UploadCloud, CheckCircle, 
-  ChevronRight, ChevronLeft, MapPin, GraduationCap, 
-  Award, Send, AlertCircle, Loader2
-} from 'lucide-react';
-
-// --- KONFIGURASI API ---
-const CONFIG = {
-  SHEET_API_URL: 'https://sheetdb.io/api/v1/i0hvwpp56ut4x',
-  CLOUDINARY_URL: 'https://api.cloudinary.com/v1_1/djfe10hfh/upload',
-  CLOUDINARY_PRESET: 'kaririptek',
-  EMAILJS_SERVICE_ID: 'YOUR_SERVICE_ID',
-  EMAILJS_TEMPLATE_ID: 'YOUR_TEMPLATE_ID',
-  EMAILJS_PUBLIC_KEY: 'YOUR_PUBLIC_KEY'
-};
-
-export default function App() {
-  // State Management
-  const [view, setView] = useState('landing'); // 'landing', 'form', 'success'
-  const [currentStep, setCurrentStep] = useState(1);
-  const [jobs, setJobs] = useState([]);
-  const [loadingJobs, setLoadingJobs] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState('');
-
-  // Form Data State
-  const [formData, setFormData] = useState({
-    id_pelamar: `APP-${Date.now().toString().slice(-6)}`,
-    nama: '',
-    email: '',
-    no_hp: '',
-    alamat: '',
-    pendidikan: '',
-    posisi_id: '',
-    posisi_nama: '',
-    pengalaman: '',
-    keahlian: '',
-    motivasi: '',
-    cv_file: null,
-    portofolio_file: null,
-    foto_file: null,
-    cv_url: '',
-    portofolio_url: '',
-    foto_url: ''
-  });
-
-  // Fetch Data Lowongan dari Spreadsheet Nyata
-  useEffect(() => {
-    const fetchJobs = async () => {
-      setLoadingJobs(true);
-      try {
-        const response = await fetch(`${CONFIG.SHEET_API_URL}?sheet=jobs`);
-        const data = await response.json();
-        
-        if (Array.isArray(data)) {
-          setJobs(data.filter(job => job.status?.toLowerCase() === 'aktif'));
-        }
-      } catch (error) {
-        console.error("Error fetching jobs:", error);
-      } finally {
-        setLoadingJobs(false);
-      }
-    };
-
-    fetchJobs();
-  }, []);
-
-  // Handlers
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = (e) => {
-    const { name, files } = e.target;
-    if (files.length > 0) {
-      setFormData(prev => ({ ...prev, [name]: files[0] }));
-    }
-  };
-
-  const handleJobSelect = (jobId, jobName) => {
-    setFormData(prev => ({ ...prev, posisi_id: jobId, posisi_nama: jobName }));
-  };
-
-  const nextStep = () => {
-    if (currentStep === 1) {
-      if (!formData.nama || !formData.email || !formData.no_hp || !formData.pendidikan) {
-        alert("Mohon lengkapi semua field yang wajib (Nama, Email, No HP, Pendidikan).");
-        return;
-      }
-    } else if (currentStep === 2) {
-      if (!formData.posisi_id) {
-        alert("Mohon pilih posisi yang ingin dilamar.");
-        return;
-      }
-    } else if (currentStep === 3) {
-      if (!formData.keahlian || !formData.motivasi) {
-        alert("Mohon lengkapi keahlian dan motivasi Anda.");
-        return;
-      }
-    }
-    setCurrentStep(prev => prev + 1);
-  };
-
-  const prevStep = () => setCurrentStep(prev => prev - 1);
-
-  const uploadFileToCloud = async (file) => {
-    if (!file) return "";
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(`https://storage.iptek.school/mock/${file.name}`);
-      }, 1000);
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.cv_file || !formData.foto_file) {
-      alert("CV dan Foto Diri wajib diunggah!");
-      return;
-    }
-
-    setIsSubmitting(true);
-    
-    try {
-      setUploadProgress('Mengunggah dokumen...');
-      const cvUrl = await uploadFileToCloud(formData.cv_file);
-      const portofolioUrl = await uploadFileToCloud(formData.portofolio_file);
-      const fotoUrl = await uploadFileToCloud(formData.foto_file);
-
-      setUploadProgress('Menyimpan data lamaran...');
-      const payload = {
-        timestamp: new Date().toLocaleString('id-ID'),
-        id_pelamar: formData.id_pelamar,
-        nama: formData.nama,
-        email: formData.email,
-        no_hp: `'${formData.no_hp}`, 
-        alamat: formData.alamat,
-        pendidikan: formData.pendidikan,
-        posisi: formData.posisi_nama,
-        pengalaman: formData.pengalaman,
-        keahlian: formData.keahlian,
-        motivasi: formData.motivasi,
-        link_cv: cvUrl,
-        link_portofolio: portofolioUrl,
-        link_foto: fotoUrl
-      };
-
-      const response = await fetch(`${CONFIG.SHEET_API_URL}?sheet=applications`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) throw new Error("Gagal menyimpan ke spreadsheet");
-
-      setView('success');
-    } catch (error) {
-      console.error("Gagal mengirim lamaran:", error);
-      alert("Terjadi kesalahan saat mengirim data.");
-    } finally {
-      setIsSubmitting(false);
-      setUploadProgress('');
-    }
-  };
-
-  // --- RENDER COMPONENTS ---
-
-  const renderLanding = () => (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-12">
-      <div className="bg-blue-700 text-white rounded-b-[2.5rem] p-8 pb-16 shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-        <div className="max-w-3xl mx-auto relative z-10 text-center mt-8">
-          <div className="inline-block bg-white/20 px-4 py-1 rounded-full text-sm font-medium mb-4 backdrop-blur-sm border border-white/30">
-            IPTEK Career System
-          </div>
-          <h1 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight">Bergabung Bersama<br/>IPTEK School</h1>
-          <button 
-            onClick={() => {
-              setView('form');
-              setCurrentStep(1); // Mulai dari awal
-            }}
-            className="bg-white text-blue-700 px-8 py-3.5 rounded-full font-semibold shadow-lg hover:shadow-xl hover:bg-blue-50 transition-all active:scale-95"
-          >
-            Mulai Lamar Sekarang
-          </button>
-        </div>
-      </div>
-
-      <div className="max-w-3xl mx-auto px-4 -mt-8 relative z-20">
-        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-slate-100">
-          <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-            <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
-              <Briefcase className="text-blue-600 w-5 h-5" />
-              Lowongan Aktif Tersedia
-            </h2>
-            <span className="bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-bold">
-              {jobs.length} Posisi
-            </span>
-          </div>
-
-          {loadingJobs ? (
-            <div className="flex flex-col items-center justify-center py-10 space-y-3">
-              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-              <p className="text-sm text-slate-500">Memuat data lowongan...</p>
-            </div>
-          ) : jobs.length > 0 ? (
-            <div className="grid gap-4">
-              {jobs.map(job => (
-                <div key={job.id} className="border border-slate-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-md transition-all group">
-                  <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-700">{job.posisi}</h3>
-                  <p className="text-sm text-slate-500 mt-1 mb-3">{job.deskripsi}</p>
-                  <button 
-                    onClick={() => {
-                      handleJobSelect(job.id, job.posisi);
-                      setView('form');
-                      setCurrentStep(1); // Perbaikan: Tetap ke Step 1 (Data Diri), tapi posisi sudah terpilih
-                    }}
-                    className="text-sm font-medium text-blue-600 flex items-center gap-1 hover:text-blue-800"
-                  >
-                    Lamar Posisi Ini <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-             <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                <AlertCircle className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-                <h3 className="font-semibold text-slate-700">Belum Ada Lowongan</h3>
-             </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderProgressBar = () => {
-    const steps = [
-      { num: 1, label: 'Data Diri', icon: User },
-      { num: 2, label: 'Posisi', icon: Briefcase },
-      { num: 3, label: 'Profesional', icon: Award },
-      { num: 4, label: 'Berkas', icon: FileText }
-    ];
-
-    return (
-      <div className="mb-8">
-        <div className="flex justify-between relative">
-          <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 -z-10 transform -translate-y-1/2 rounded-full"></div>
-          <div 
-            className="absolute top-1/2 left-0 h-1 bg-blue-600 -z-10 transform -translate-y-1/2 transition-all duration-300 ease-in-out rounded-full"
-            style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
-          ></div>
-
-          {steps.map((s) => {
-            const Icon = s.icon;
-            const isActive = currentStep >= s.num;
-            return (
-              <div key={s.num} className="flex flex-col items-center gap-2 bg-white px-2">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors duration-300 ${isActive ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200' : 'bg-white border-slate-300 text-slate-400'}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                <span className={`text-[10px] md:text-xs font-semibold ${isActive ? 'text-blue-700' : 'text-slate-400'}`}>{s.label}</span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const renderForm = () => (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 font-sans text-slate-800">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <button onClick={() => setView('landing')} className="flex items-center text-sm font-medium text-slate-500 hover:text-blue-600">
-            <ChevronLeft className="w-4 h-4 mr-1" /> Kembali
-          </button>
-          <div className="text-sm font-bold text-slate-800 bg-white px-3 py-1 rounded-full shadow-sm border border-slate-100">
-            ID: <span className="text-blue-600">{formData.id_pelamar}</span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-xl p-6 md:p-10 border border-slate-100 animate-fade-in">
-          <h2 className="text-2xl font-bold mb-6 text-center text-slate-800">Formulir Lamaran Kerja</h2>
-          
-          {renderProgressBar()}
-
-          <form onSubmit={handleSubmit} className="mt-8">
-            {currentStep === 1 && (
-              <div className="space-y-4 animate-fade-in">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Lengkap <span className="text-red-500">*</span></label>
-                  <input type="text" name="nama" value={formData.nama} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="Misal: Budi Santoso" required />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Email <span className="text-red-500">*</span></label>
-                    <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="budi@email.com" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">No. WhatsApp <span className="text-red-500">*</span></label>
-                    <input type="tel" name="no_hp" value={formData.no_hp} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="08123456789" required />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Domisili (Kota) <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
-                    <input type="text" name="alamat" value={formData.alamat} onChange={handleInputChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="Misal: Jakarta Selatan" required />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Pendidikan Terakhir <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                    <GraduationCap className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
-                    <select name="pendidikan" value={formData.pendidikan} onChange={handleInputChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none bg-white" required>
-                      <option value="">Pilih Pendidikan...</option>
-                      <option value="SMA/SMK">SMA/SMK Sederajat</option>
-                      <option value="D3">Diploma (D3)</option>
-                      <option value="S1">Sarjana (S1)</option>
-                      <option value="S2">Magister (S2)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {currentStep === 2 && (
-              <div className="space-y-4 animate-fade-in">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-3">Pilih Posisi yang Dilamar <span className="text-red-500">*</span></label>
-                  <div className="grid grid-cols-1 gap-3">
-                    {jobs.map(job => (
-                      <label 
-                        key={job.id} 
-                        className={`relative flex cursor-pointer rounded-xl border p-4 shadow-sm focus:outline-none transition-all ${
-                          formData.posisi_id === job.id ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-slate-300 bg-white hover:bg-slate-50'
-                        }`}
-                      >
-                        <input 
-                          type="radio" 
-                          name="posisi" 
-                          value={job.id} 
-                          checked={formData.posisi_id === job.id}
-                          onChange={() => handleJobSelect(job.id, job.posisi)}
-                          className="sr-only" 
-                        />
-                        <span className="flex flex-1">
-                          <span className="flex flex-col">
-                            <span className="block text-sm font-bold text-slate-900">{job.posisi}</span>
-                            <span className="mt-1 flex items-center text-xs text-slate-500">{job.deskripsi}</span>
-                          </span>
-                        </span>
-                        {formData.posisi_id === job.id && <CheckCircle className="h-5 w-5 text-blue-600" />}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {currentStep === 3 && (
-              <div className="space-y-4 animate-fade-in">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Pengalaman Kerja Terakhir (Opsional)</label>
-                  <textarea name="pengalaman" value={formData.pengalaman} onChange={handleInputChange} rows="3" className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none" placeholder="Ceritakan pengalaman kerja Anda secara singkat..."></textarea>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Keahlian Utama <span className="text-red-500">*</span></label>
-                  <input type="text" name="keahlian" value={formData.keahlian} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" placeholder="Misal: Mengajar, Microsoft Office, Desain Grafis" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Motivasi Melamar <span className="text-red-500">*</span></label>
-                  <textarea name="motivasi" value={formData.motivasi} onChange={handleInputChange} rows="3" className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none" placeholder="Mengapa Anda ingin bergabung dengan IPTEK School?" required></textarea>
-                </div>
-              </div>
-            )}
-
-            {currentStep === 4 && (
-              <div className="space-y-5 animate-fade-in">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Curriculum Vitae (CV) <span className="text-red-500">*</span></label>
-                  <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors group cursor-pointer">
-                    <input type="file" name="cv_file" onChange={handleFileChange} accept=".pdf" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" required />
-                    <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-blue-500 transition-colors" />
-                    <span className="text-sm text-slate-600 font-medium">{formData.cv_file ? formData.cv_file.name : 'Klik atau Drag file PDF kesini'}</span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Pas Foto Terbaru <span className="text-red-500">*</span></label>
-                  <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors group cursor-pointer">
-                    <input type="file" name="foto_file" onChange={handleFileChange} accept=".jpg,.jpeg,.png" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" required />
-                    <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-blue-500 transition-colors" />
-                    <span className="text-sm text-slate-600 font-medium">{formData.foto_file ? formData.foto_file.name : 'Klik atau Drag foto (JPG/PNG)'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-8 flex justify-between pt-6 border-t border-slate-100">
-              {currentStep > 1 ? (
-                <button type="button" onClick={prevStep} disabled={isSubmitting} className="px-6 py-2.5 rounded-xl text-slate-600 font-semibold hover:bg-slate-100 transition-colors disabled:opacity-50">
-                  Kembali
-                </button>
-              ) : <div></div>}
-
-              {currentStep < 4 ? (
-                <button type="button" onClick={nextStep} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200 flex items-center gap-2">
-                  Lanjut <ChevronRight className="w-4 h-4" />
-                </button>
-              ) : (
-                <button type="submit" disabled={isSubmitting} className="px-8 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-200 flex items-center gap-2">
-                  {isSubmitting ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> {uploadProgress || 'Memproses...'}</>
-                  ) : (
-                    <><Send className="w-4 h-4" /> Kirim Lamaran</>
-                  )}
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderSuccess = () => (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white p-8 md:p-12 rounded-[2rem] shadow-2xl text-center max-w-md w-full animate-fade-in">
-        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle className="w-10 h-10 text-emerald-600" />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Lamaran Berhasil Terkirim!</h2>
-        <p className="text-slate-500 mb-6 text-sm">ID Lamaran: <span className="font-bold text-blue-600">{formData.id_pelamar}</span></p>
-        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-semibold hover:bg-slate-800 transition-colors">
-          Kembali ke Beranda
-        </button>
-      </div>
-    </div>
-  );
-
-  return (
-    <>
-      <style>{`
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPTEK Career System</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-      `}</style>
-      
-      {view === 'landing' && renderLanding()}
-      {view === 'form' && renderForm()}
-      {view === 'success' && renderSuccess()}
-    </>
-  );
-}
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        
+        .lucide {
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .file-upload-card {
+            transition: all 0.3s ease;
+            border: 2px dashed #e2e8f0;
+        }
+        .file-upload-card:hover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        
+        const Icon = ({ name, className }) => {
+            const iconRef = useRef(null);
+
+            useEffect(() => {
+                if (window.lucide && iconRef.current) {
+                    iconRef.current.innerHTML = ''; 
+                    const iconElement = document.createElement('i');
+                    iconElement.setAttribute('data-lucide', name);
+                    if (className) iconElement.setAttribute('class', className);
+                    iconRef.current.appendChild(iconElement);
+                    window.lucide.createIcons();
+                }
+            }, [name, className]);
+
+            return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+        };
+
+        const CONFIG = {
+            SHEET_API_URL: 'https://sheetdb.io/api/v1/i0hvwpp56ut4x',
+            // SILAKAN ISI DATA CLOUDINARY ANDA DI SINI
+            CLOUDINARY_URL: 'https://api.cloudinary.com/v1_1/djfe10hfh/upload',
+            CLOUDINARY_PRESET: 'kaririptek'
+        };
+
+        function App() {
+            const [view, setView] = useState('landing');
+            const [currentStep, setCurrentStep] = useState(1);
+            const [jobs, setJobs] = useState([]);
+            const [loadingJobs, setLoadingJobs] = useState(true);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [uploadStatus, setUploadStatus] = useState('');
+            
+            const [formData, setFormData] = useState({
+                id_pelamar: `APP-${Date.now().toString().slice(-6)}`,
+                nama: '', email: '', no_hp: '', alamat: '', pendidikan: '',
+                posisi_id: '', posisi_nama: '', pengalaman: '', keahlian: '', motivasi: '',
+                cv_file: null, foto_file: null
+            });
+
+            useEffect(() => {
+                window.scrollTo(0, 0);
+            }, [view, currentStep]);
+
+            useEffect(() => {
+                fetch(`${CONFIG.SHEET_API_URL}?sheet=jobs`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (Array.isArray(data)) {
+                            setJobs(data.filter(j => j.status?.toLowerCase() === 'aktif'));
+                        }
+                        setLoadingJobs(false);
+                    })
+                    .catch(() => setLoadingJobs(false));
+            }, []);
+
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleFileChange = (e, fieldName) => {
+                const file = e.target.files[0];
+                if (file) {
+                    setFormData(prev => ({ ...prev, [fieldName]: file }));
+                }
+            };
+
+            const handleJobSelect = (id, nama) => {
+                setFormData(prev => ({ ...prev, posisi_id: id, posisi_nama: nama }));
+            };
+
+            const uploadToCloudinary = async (file) => {
+                if (!file) return "";
+                const data = new FormData();
+                data.append("file", file);
+                data.append("upload_preset", CONFIG.CLOUDINARY_PRESET);
+                
+                try {
+                    const res = await fetch(CONFIG.CLOUDINARY_URL, {
+                        method: "POST",
+                        body: data
+                    });
+                    const resData = await res.json();
+                    return resData.secure_url || "";
+                } catch (err) {
+                    console.error("Cloudinary Error:", err);
+                    return "";
+                }
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!formData.cv_file || !formData.foto_file) {
+                    alert("Mohon lengkapi unggahan berkas (CV dan Foto).");
+                    return;
+                }
+
+                setIsSubmitting(true);
+                setUploadStatus('Mengunggah dokumen...');
+                
+                try {
+                    const cvUrl = await uploadToCloudinary(formData.cv_file);
+                    const fotoUrl = await uploadToCloudinary(formData.foto_file);
+
+                    if (!cvUrl || !fotoUrl) {
+                        throw new Error("Gagal mengunggah ke Cloudinary. Periksa konfigurasi Anda.");
+                    }
+
+                    setUploadStatus('Menyimpan data...');
+
+                    const payload = {
+                        timestamp: new Date().toLocaleString('id-ID'),
+                        id_pelamar: formData.id_pelamar,
+                        nama: formData.nama,
+                        email: formData.email,
+                        no_hp: `'${formData.no_hp}`,
+                        alamat: formData.alamat,
+                        pendidikan: formData.pendidikan,
+                        posisi: formData.posisi_nama,
+                        pengalaman: formData.pengalaman,
+                        keahlian: formData.keahlian,
+                        motivasi: formData.motivasi,
+                        link_cv: cvUrl,
+                        link_foto: fotoUrl
+                    };
+
+                    const response = await fetch(`${CONFIG.SHEET_API_URL}?sheet=applications`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) throw new Error("Gagal simpan ke Google Sheets");
+                    setView('success');
+                } catch (error) {
+                    alert(error.message);
+                } finally {
+                    setIsSubmitting(false);
+                    setUploadStatus('');
+                }
+            };
+
+            // File Upload Component
+            const FileUpload = ({ label, icon, accept, file, onChange, id }) => (
+                <div className="relative">
+                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">{label}</label>
+                    <label htmlFor={id} className={`file-upload-card flex flex-col items-center justify-center p-6 rounded-2xl cursor-pointer ${file ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50'}`}>
+                        <input type="file" id={id} className="hidden" accept={accept} onChange={(e) => onChange(e)} />
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${file ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
+                            <Icon name={file ? "check" : icon} className="w-6 h-6" />
+                        </div>
+                        <p className={`text-sm font-medium ${file ? 'text-emerald-700' : 'text-slate-600'}`}>
+                            {file ? file.name : "Pilih atau Seret Berkas"}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">{accept.includes('pdf') ? 'Hanya PDF (Maks 2MB)' : 'JPG, PNG (Maks 1MB)'}</p>
+                    </label>
+                </div>
+            );
+
+            if (view === 'success') {
+                return (
+                    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                        <div className="bg-white p-8 rounded-[2rem] shadow-2xl text-center max-w-md w-full animate-fade-in border border-slate-100">
+                            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Icon name="check-circle" className="w-10 h-10 text-emerald-600" />
+                            </div>
+                            <h2 className="text-2xl font-bold mb-2 text-slate-800">Lamaran Terkirim!</h2>
+                            <p className="text-slate-500 mb-6 leading-relaxed">Terima kasih telah melamar. Simpan ID lamaran Anda: <br/> <span className="text-blue-600 font-bold text-lg">{formData.id_pelamar}</span></p>
+                            <button onClick={() => window.location.reload()} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">Selesai</button>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (view === 'form') {
+                return (
+                    <div className="min-h-screen bg-slate-50 py-10 px-4">
+                        <div className="max-w-2xl mx-auto bg-white rounded-[2.5rem] shadow-2xl p-8 md:p-12 animate-fade-in border border-slate-100">
+                            <div className="flex justify-between items-center mb-8">
+                                <button onClick={() => setView('landing')} className="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 hover:bg-blue-600 hover:text-white transition-all">
+                                    <Icon name="chevron-left" className="w-6 h-6" />
+                                </button>
+                                <div className="flex gap-2">
+                                    {[1, 2, 3].map(s => (
+                                        <div key={s} className={`h-2 w-8 rounded-full ${currentStep >= s ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <h2 className="text-3xl font-black text-slate-800 mb-2">Formulir Lamaran</h2>
+                            <p className="text-slate-500 mb-8">Lengkapi data Anda dengan benar untuk proses seleksi.</p>
+                            
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                {currentStep === 1 && (
+                                    <div className="space-y-4 animate-fade-in">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-500 ml-1">NAMA LENGKAP</label>
+                                                <input name="nama" placeholder="Contoh: Budi Santoso" onChange={handleInputChange} value={formData.nama} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" required />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-500 ml-1">NOMOR WHATSAPP</label>
+                                                <input name="no_hp" placeholder="0812xxxx" onChange={handleInputChange} value={formData.no_hp} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" required />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-500 ml-1">EMAIL AKTIF</label>
+                                            <input name="email" type="email" placeholder="budi@example.com" onChange={handleInputChange} value={formData.email} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" required />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-500 ml-1">PENDIDIKAN TERAKHIR</label>
+                                            <select name="pendidikan" onChange={handleInputChange} value={formData.pendidikan} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none" required>
+                                                <option value="">Pilih Jenjang</option>
+                                                <option value="SMA/SMK">SMA/SMK Sederajat</option>
+                                                <option value="D3">Diploma (D3)</option>
+                                                <option value="S1">Sarjana (S1)</option>
+                                                <option value="S2">Magister (S2)</option>
+                                            </select>
+                                        </div>
+                                        <button type="button" onClick={() => setCurrentStep(2)} className="w-full bg-blue-600 text-white p-5 rounded-2xl font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 flex items-center justify-center gap-2 mt-4">
+                                            Lanjut Pilih Posisi <Icon name="arrow-right" className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                )}
+
+                                {currentStep === 2 && (
+                                    <div className="space-y-4 animate-fade-in">
+                                        <label className="text-xs font-bold text-slate-500 ml-1">PILIH POSISI YANG DILAMAR</label>
+                                        <div className="grid gap-3">
+                                            {jobs.map(j => (
+                                                <div 
+                                                    key={j.id} 
+                                                    onClick={() => handleJobSelect(j.id, j.posisi)} 
+                                                    className={`p-5 border-2 rounded-2xl cursor-pointer transition-all flex justify-between items-center ${formData.posisi_id === j.id ? 'border-blue-600 bg-blue-50' : 'border-slate-100 hover:border-blue-200'}`}
+                                                >
+                                                    <div>
+                                                        <p className="font-bold text-slate-800 text-lg">{j.posisi}</p>
+                                                        <p className="text-sm text-slate-500">{j.deskripsi}</p>
+                                                    </div>
+                                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${formData.posisi_id === j.id ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200'}`}>
+                                                        {formData.posisi_id === j.id && <Icon name="check" className="w-4 h-4" />}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-3 pt-6">
+                                            <button type="button" onClick={() => setCurrentStep(1)} className="flex-1 bg-slate-100 text-slate-600 p-5 rounded-2xl font-bold">Kembali</button>
+                                            <button type="button" onClick={() => setCurrentStep(3)} disabled={!formData.posisi_id} className={`flex-1 p-5 rounded-2xl font-bold text-white shadow-xl ${formData.posisi_id ? 'bg-blue-600 shadow-blue-100' : 'bg-slate-300 cursor-not-allowed'}`}>Lanjut Dokumen</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {currentStep === 3 && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <FileUpload 
+                                                id="cv_upload" 
+                                                label="Upload CV" 
+                                                icon="file-text" 
+                                                accept=".pdf" 
+                                                file={formData.cv_file} 
+                                                onChange={(e) => handleFileChange(e, 'cv_file')} 
+                                            />
+                                            <FileUpload 
+                                                id="foto_upload" 
+                                                label="Pas Foto" 
+                                                icon="image" 
+                                                accept="image/*" 
+                                                file={formData.foto_file} 
+                                                onChange={(e) => handleFileChange(e, 'foto_file')} 
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-500 ml-1">MOTIVASI SINGKAT</label>
+                                            <textarea name="motivasi" placeholder="Ceritakan singkat mengapa Anda kandidat yang tepat..." onChange={handleInputChange} value={formData.motivasi} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl h-32 focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all" required></textarea>
+                                        </div>
+                                        
+                                        <div className="flex gap-3">
+                                            <button type="button" onClick={() => setCurrentStep(2)} className="flex-1 bg-slate-100 text-slate-600 p-5 rounded-2xl font-bold transition-all">Kembali</button>
+                                            <button type="submit" disabled={isSubmitting} className="flex-1 bg-emerald-600 text-white p-5 rounded-2xl font-bold shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3">
+                                                {isSubmitting ? (
+                                                    <><Icon name="loader" className="animate-spin w-5 h-5" /> {uploadStatus}</>
+                                                ) : "Kirim Lamaran"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </form>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-50">
+                    <div className="bg-gradient-to-br from-blue-700 to-indigo-800 text-white p-16 text-center rounded-b-[4rem] shadow-2xl relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/circuit-board.png')]"></div>
+                        <div className="relative z-10 max-w-2xl mx-auto">
+                            <span className="bg-blue-500/30 text-blue-100 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-6 inline-block">Work with us</span>
+                            <h1 className="text-5xl md:text-6xl font-black mb-6 tracking-tight">IPTEK School Career</h1>
+                            <p className="text-lg md:text-xl text-blue-100/80 mb-10 leading-relaxed font-medium italic">"Membangun masa depan pendidikan melalui inovasi dan integritas."</p>
+                            
+                            <button 
+                                onClick={() => setView('form')} 
+                                disabled={jobs.length === 0}
+                                className={`px-12 py-5 rounded-full font-black text-lg transition-all transform hover:scale-105 active:scale-95 shadow-2xl ${jobs.length > 0 ? 'bg-white text-blue-700 shadow-blue-900/40' : 'bg-slate-400 text-slate-100 cursor-not-allowed grayscale'}`}
+                            >
+                                {jobs.length > 0 ? 'Lamar Sekarang' : 'Lowongan Tidak Tersedia'}
+                            </button>
+                            
+                            {jobs.length === 0 && !loadingJobs && (
+                                <p className="mt-4 text-sm text-blue-200/60 font-medium">Maaf, saat ini belum ada posisi yang dibuka.</p>
+                            )}
+                        </div>
+                    </div>
+                    
+                    <div className="max-w-4xl mx-auto p-8 -mt-16 bg-white rounded-[3rem] shadow-2xl relative z-20 border border-slate-50 overflow-hidden">
+                        <div className="flex items-center justify-between mb-8 pb-6 border-b border-slate-100">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
+                                    <Icon name="briefcase" className="w-6 h-6" />
+                                </div>
+                                <h2 className="font-black text-2xl text-slate-800 tracking-tight">Posisi Tersedia</h2>
+                            </div>
+                            <span className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-sm font-bold">{jobs.length} Aktif</span>
+                        </div>
+                        
+                        {loadingJobs ? (
+                            <div className="flex flex-col items-center py-20 space-y-4">
+                                <Icon name="loader" className="animate-spin text-blue-600 w-10 h-10" />
+                                <p className="text-slate-400 font-medium tracking-wide">Menghubungkan ke server...</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {jobs.length > 0 ? jobs.map(j => (
+                                    <div key={j.id} className="p-6 border border-slate-100 rounded-[2rem] hover:border-blue-400 hover:bg-blue-50/30 transition-all group flex flex-col justify-between">
+                                        <div>
+                                            <h3 className="font-black text-xl text-slate-800 group-hover:text-blue-700 transition-colors">{j.posisi}</h3>
+                                            <p className="text-sm text-slate-500 mt-2 leading-relaxed line-clamp-3">{j.deskripsi}</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => { handleJobSelect(j.id, j.posisi); setView('form'); setCurrentStep(1); }} 
+                                            className="mt-6 text-blue-600 font-bold flex items-center gap-2 group-hover:gap-4 transition-all"
+                                        >
+                                            Detail & Lamar <Icon name="arrow-right" className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )) : (
+                                    <div className="col-span-2 text-center py-20">
+                                        <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 opacity-50">
+                                            <Icon name="search-x" className="w-10 h-10 text-slate-400" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-slate-400">Belum Ada Lowongan</h3>
+                                        <p className="text-slate-400 max-w-xs mx-auto mt-2">Pantau terus halaman ini untuk informasi karir terbaru dari IPTEK School.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    
+                    <footer className="py-16 text-center">
+                        <div className="flex justify-center gap-6 mb-4">
+                             <span className="w-2 h-2 bg-slate-200 rounded-full"></span>
+                             <span className="w-2 h-2 bg-slate-200 rounded-full"></span>
+                             <span className="w-2 h-2 bg-slate-200 rounded-full"></span>
+                        </div>
+                        <p className="text-slate-400 text-sm font-medium">&copy; 2026 IPTEK School Recruitment Portal. All Rights Reserved.</p>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
